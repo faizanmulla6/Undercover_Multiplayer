@@ -3,6 +3,7 @@ package com.faizan.undercover
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import com.faizan.undercover.data.GameStore
@@ -51,7 +52,7 @@ class MultiplayerViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var hostAddress by mutableStateOf<String?>(null)
         private set
-    var hostPort by mutableStateOf(Proto.PORT)
+    var hostPort by mutableIntStateOf(Proto.PORT)
         private set
     var discoveredHosts by mutableStateOf<List<DiscoveredHost>>(emptyList())
         private set
@@ -64,7 +65,7 @@ class MultiplayerViewModel(app: Application) : AndroidViewModel(app) {
         val id: String,
         var name: String,
         var connectionId: String?,
-        val isHost: Boolean = false
+        val isHost: Boolean = false,
     ) {
         var alive = true
         var connected = true

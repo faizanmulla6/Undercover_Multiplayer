@@ -292,7 +292,7 @@ fun NetGameScreen(
             NetPhase.LOBBY -> Unit
         }
 
-        if (state.phase != NetPhase.VOTING && state.phase != NetPhase.RESULT) {
+        if (state.phase == NetPhase.REVEAL) {
             SectionCard(title = "At the table") {
                 state.players.forEach { player -> PlayerRow(player) }
             }
