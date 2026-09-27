@@ -15,6 +15,7 @@ import com.faizan.undercover.model.Role
 import com.faizan.undercover.model.RoundOutcome
 import com.faizan.undercover.model.RoundPlayer
 import com.faizan.undercover.model.Screen
+import com.faizan.undercover.model.ShuffleMode
 import com.faizan.undercover.model.VoteStyle
 import com.faizan.undercover.model.WordMode
 import com.faizan.undercover.model.WordPair
@@ -203,6 +204,50 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun assignRoles(): List<Role> {
+        val n = state.players.size
+        val roles = MutableList(n) { Role.CIVILIAN }
+        
+        val indices = when (state.shuffleMode) {
+            ShuffleMode.FAIR -> {
+                // Pick players who haven't been Undercover recently
+                state.players.indices.shuffled().sortedBy { idx ->
+                    val name = state.players[idx]
+                    state.history.reversed().take(n * 2).count { h -> 
+                        h.players.any { it.name == name && it.role != Role.CIVILIAN } 
+                    }
+                }
+            }
+            ShuffleMode.SKILLED -> {
+                // High scores -> Undercover, Low scores -> Blank
+                state.players.indices.shuffled().sortedWith { a, b ->
+                    val scoreA = state.scores[state.players[a]] ?: 0
+                    val scoreB = state.scores[state.players[b]] ?: 0
+                    scoreB.compareTo(scoreA) // High score first
+                }
+            }
+            ShuffleMode.CHAOS -> state.players.indices.shuffled()
+        }
+
+        var cursor = 0
+        // Undercover first
+        repeat(state.undercoverCount) {
+            roles[indices[cursor]] = Role.UNDERCOVER
+            cursor++
+        }
+        // Blank last (so if SKILLED, the lowest score gets it)
+        if (state.useBlank) {
+            val blankIdx = if (state.shuffleMode == ShuffleMode.SKILLED) {
+                indices.last() // Lowest score
+            } else {
+                indices[cursor]
+            }
+            roles[blankIdx] = Role.BLANK
+        }
+        
+        return roles
+    }
+
     private fun clampUndercover() {
         val clamped = state.undercoverCount.coerceIn(1, state.maxUndercover)
         if (clamped != state.undercoverCount) {
@@ -329,6 +374,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         return null
     }
 
+    fun setShuffleMode(mode: ShuffleMode) {
+        state = state.copy(shuffleMode = mode)
+    }
+
+    fun setTargetRounds(count: Int) {
+        state = state.copy(targetRounds = count)
+    }
+
     fun startRound() {
         if (!canStart()) return
         val pool = wordPool()
@@ -337,17 +390,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val civilianWord = if (flip) pair.civilian else pair.undercover
         val undercoverWord = if (flip) pair.undercover else pair.civilian
 
-        val roles = MutableList(state.players.size) { Role.CIVILIAN }
-        val shuffled = state.players.indices.shuffled()
-        var cursor = 0
-        repeat(state.undercoverCount) {
-            roles[shuffled[cursor]] = Role.UNDERCOVER
-            cursor++
-        }
-        if (state.useBlank) {
-            roles[shuffled[cursor]] = Role.BLANK
-            cursor++
-        }
+        val roles = assignRoles()
 
         val round = state.players.mapIndexed { index, name ->
             RoundPlayer(
@@ -407,28 +450,62 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     // Voting
     // ------------------------------------------------------------------
 
+    val alivePlayersCount: Int
+        get() = state.round.count { !it.eliminated }
+
+    val totalVotesCast: Int
+        get() = state.votes.values.sum()
+
     fun addVote(index: Int) {
         if (state.roundOver) return
         val player = state.round.getOrNull(index) ?: return
         if (player.eliminated) return
+
+        val alive = alivePlayersCount
+        if (alive == 0 || totalVotesCast >= alive) return
+
         val votes = state.votes.toMutableMap()
         votes[index] = (votes[index] ?: 0) + 1
-        state = state.copy(votes = votes)
+
+        val newTotal = votes.values.sum()
+        if (newTotal >= alive) {
+            val top = votes.maxByOrNull { it.value }
+            val maxVotes = top?.value ?: 0
+            val tiedCount = votes.count { it.value == maxVotes }
+
+            if (tiedCount > 1 || maxVotes == 0) {
+                // Tie! Start a new voting cycle
+                state = state.copy(
+                    votes = emptyMap(),
+                    tieMessage = "Tied vote ($maxVotes-$maxVotes)! Starting a new voting cycle."
+                )
+            } else {
+                state = state.copy(votes = votes, tieMessage = null)
+            }
+        } else {
+            state = state.copy(votes = votes, tieMessage = null)
+        }
     }
 
     fun removeVote(index: Int) {
         val current = state.votes[index] ?: return
         val votes = state.votes.toMutableMap()
         if (current <= 1) votes.remove(index) else votes[index] = current - 1
-        state = state.copy(votes = votes)
+        state = state.copy(votes = votes, tieMessage = null)
     }
 
     fun clearVotes() {
-        state = state.copy(votes = emptyMap())
+        state = state.copy(votes = emptyMap(), tieMessage = null)
     }
 
-    /** The single player with the most votes, or null on a tie / no votes. */
+    fun clearTieMessage() {
+        state = state.copy(tieMessage = null)
+    }
+
+    /** The single player with the most votes, or null on a tie / incomplete votes. */
     fun voteLeader(): Int? {
+        val alive = alivePlayersCount
+        if (alive == 0 || totalVotesCast < alive) return null
         val top = state.votes.maxByOrNull { it.value } ?: return null
         val tied = state.votes.count { it.value == top.value }
         return if (tied == 1) top.key else null

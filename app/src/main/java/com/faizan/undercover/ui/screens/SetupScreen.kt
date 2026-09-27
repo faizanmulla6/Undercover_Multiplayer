@@ -52,6 +52,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.faizan.undercover.GameViewModel
 import com.faizan.undercover.data.WordBank
+import com.faizan.undercover.model.ShuffleMode
 import com.faizan.undercover.model.VoteStyle
 import com.faizan.undercover.model.WordMode
 import com.faizan.undercover.ui.components.SectionCard
@@ -225,6 +226,53 @@ fun SetupScreen(
                     checked = state.useBlank,
                     onCheckedChange = { vm.setUseBlank(it) }
                 )
+            }
+
+            HorizontalDivider()
+
+            Text("Distribution logic", style = MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ShuffleMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = state.shuffleMode == mode,
+                        onClick = { vm.setShuffleMode(mode) },
+                        label = {
+                            Text(
+                                when (mode) {
+                                    ShuffleMode.FAIR -> "Fair (Equal turns)"
+                                    ShuffleMode.SKILLED -> "Pro (High score = Agent)"
+                                    ShuffleMode.CHAOS -> "Chaos (Random)"
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Round limit", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Stop automatically after a set number of rounds",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { vm.setTargetRounds((state.targetRounds - 5).coerceAtLeast(0)) }) {
+                        Icon(Icons.Default.Remove, contentDescription = null)
+                    }
+                    Text(if (state.targetRounds == 0) "None" else state.targetRounds.toString())
+                    IconButton(onClick = { vm.setTargetRounds(state.targetRounds + 5) }) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                    }
+                }
             }
 
             HorizontalDivider()

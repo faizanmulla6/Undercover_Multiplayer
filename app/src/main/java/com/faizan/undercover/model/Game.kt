@@ -48,9 +48,20 @@ data class HistoryEntry(
     val players: List<RoundPlayer>
 )
 
+enum class ShuffleMode { 
+    /** Everyone gets a turn as agent equally. */
+    FAIR, 
+    /** Winners/High scores get Undercover, Low scores get Blank. */
+    SKILLED, 
+    /** Completely random. */
+    CHAOS 
+}
+
 data class GameState(
     // Setup
     val screen: Screen = Screen.SETUP,
+    val shuffleMode: ShuffleMode = ShuffleMode.FAIR,
+    val targetRounds: Int = 0,
     val players: List<String> = emptyList(),
     val undercoverCount: Int = 1,
     val useBlank: Boolean = false,
@@ -73,6 +84,7 @@ data class GameState(
     val pendingBlankGuess: Int? = null,
     val undoSnapshot: List<RoundPlayer>? = null,
     val outcome: RoundOutcome? = null,
+    val tieMessage: String? = null,
 
     // Persisted across rounds
     val scores: Map<String, Int> = emptyMap(),

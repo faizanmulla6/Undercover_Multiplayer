@@ -1,137 +1,69 @@
-# Undercover — native Android app
+# 🕵️‍♂️ Undercover
 
-A local pass-and-play social deduction party game. Same concept as before —
-add your players, deal secret words, pass the phone for private reveals, then
-argue and vote the undercover agents out — but now built as a **real native
-Android app** instead of a WebView wrapping an HTML page.
+A social deduction party game for 3 to 16 players. Find the impostors before they outnumber the civilians!
 
-## What changed
+This project is a modern, feature-rich implementation of the classic "Undercover" game, featuring both **Single-Device** (pass-and-play) and **Local WiFi Multiplayer** modes.
 
-| Before | Now |
-| --- | --- |
-| Single `WebView` loading `assets/undercover.html` | Jetpack Compose UI, no WebView, no HTML |
-| CSS variables, hand-rolled widgets | Material 3 components, real light/dark colour scheme |
-| All logic in one 1,400-line JS file | Kotlin model + `GameViewModel` + composable screens |
-| `localStorage` | `SharedPreferences` (`GameStore`), backed up by Android auto-backup |
+![Kotlin](https://img.shields.io/badge/kotlin-%237F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/jetpack%20compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)
 
-## New in this version
+## ✨ Features
 
-- **Hold-to-reveal card** with a 3D flip. The word only shows while a finger is
-  held on the card, so a phone set down mid-pass never leaks a word.
-- **Blank agent last guess** — a blank agent who gets voted out may name the
-  civilian word and steal the round outright (4 points).
-- **Categorised word bank** — ~110 built-in pairs across Food, Animals, Places,
-  Everyday Things, People & Jobs, Sport, Screen & Stage, Nature, Desi and a
-  deliberately hard "Tricky" set. Categories can be toggled on and off.
-- **Speaking order** is generated each round, with a civilian always opening so
-  the blank agent is never forced to speak first.
-- **Discussion timer** (off / 30 / 60 / 90 / 120s) with start, pause and reset.
-- **Two voting styles** — quick tap with a confirmation, or a counted tally
-  (tap to add a vote, long-press to take one back) that refuses to eliminate on
-  a tie.
-- **Undo** one elimination if the group changes its mind.
-- **Round log** under the scoreboard: who won each round and which word pair
-  was in play.
-- Screen stays awake during a game, edge-to-edge layout, haptic feedback on
-  reveal, back-button navigation, and content descriptions throughout.
+- **🎮 Dual Game Modes**:
+  - **Single Phone**: Pass one device around the circle.
+  - **Multiplayer**: Everyone joins on their own phone via Local WiFi (mDNS discovery).
+- **🎨 Dynamic Themes**:
+  - **Warm Sunset (Day)**: A cozy, high-contrast cream and parchment theme.
+  - **Briefing Room (Night)**: A sleek dark mode for late-night sessions.
+  - Quick-switch toggle in the top bar.
+- **🔡 Expansive Word Bank**:
+  - 13+ Curated categories (Food, Animals, Tech, Desi, etc.).
+  - **Custom Pairs**: Add your own inside jokes or theme-specific words.
+  - **Cloud Sync**: Import word pairs directly from a Google Sheet via Apps Script.
+- **🛠 Advanced Hosting**:
+  - Adjustable Undercover & Blank agent counts.
+  - Discussion timers and flexible voting styles (Quick Tap vs. Tally).
+  - Manual Host resolution to control the game flow.
+- **📊 Leaderboard**: Track scores across rounds.
 
-Kept from the original: custom word pairs with bulk import/export, the
-built-in/mix/custom word mode, persistent player names, cumulative scoring
-(2 points per surviving civilian, 3 per surviving undercover/blank), rules
-sheet, and fully offline play with **no INTERNET permission**.
+## 🚀 Installation
 
+### Download APK
+You can download the latest production-ready APK from the [Releases](https://github.com/faiza/UndercoverMultiplayer/releases) section of this repository.
 
-## Two ways to play
+### Build from Source
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/faiza/UndercoverMultiplayer.git
+   ```
+2. Open the project in **Android Studio (Hedgehog or newer)**.
+3. Sync Gradle and run the `app` module on your device or emulator.
 
-When the app opens it asks how you're playing tonight.
+## 📖 How to Play
 
-### One phone
-The original pass-and-play flow: add names, deal, hold the card to read your
-word, pass it on, then vote from the shared screen.
+1.  **Setup**: Add player names and choose the number of Undercover agents and Blank agents.
+2.  **The Secret**: Each player views their secret word. 
+    - **Civilians** get the same word.
+    - **Undercover** agents get a slightly different (but related) word.
+    - **Blank** agents get no word at all!
+3.  **The Clues**: In the generated speaking order, each player gives a **one-word clue** about their secret.
+4.  **The Discussion**: After everyone has spoken, the group debates who seems suspicious.
+5.  **The Vote**: Players vote to eliminate someone. 
+    - If the **Blank** agent is voted out, they get one chance to guess the Civilians' word to steal the win!
+6.  **Victory**: Civilians win if all impostors are caught. Impostors win if they outnumber the civilians.
 
-### Multiple phones (local Wi-Fi)
-One phone per player, everyone on the same Wi-Fi network. No internet, no
-accounts, no server — the host phone *is* the server.
+## 🛠 Tech Stack
 
-- **One person hosts.** They pick their name and tap *Host a game*. The app
-  starts a TCP server on the phone and advertises it over mDNS, and also shows
-  its `IP:port` for the case where a router blocks discovery.
-- **Everyone else joins.** *Find a game* lists hosts found on the network; tap
-  one, or type the address the host is showing.
-- **Only the host can set up.** Number of undercover agents (auto-balanced as
-  people join), blank agent on/off, discussion timer, kicking a player, dealing
-  the round, opening voting, revealing roles, starting the next round. Joining
-  phones have none of those controls.
-- **Everyone else sees only their own card and the vote.** The host never sends
-  another player's word down the wire, so there is nothing to peek at even in
-  the raw traffic.
-- **Voting is real.** Each living player taps one name on their own phone. The
-  host counts them, refuses to resolve a tie (everyone votes again), reveals the
-  eliminated player's role, and checks the win condition.
-- **Blank agent guess** works over the network too: the eliminated blank gets a
-  private prompt on their own phone.
-- **Reconnects are handled.** If a phone drops, it keeps its seat and role — the
-  player rejoins with the same name and picks up where they left off.
+- **UI**: Jetpack Compose with Material 3.
+- **State**: ViewModel with `mutableStateOf` and Kotlin Coroutines.
+- **Networking**: Custom TCP Socket Server/Client with mDNS (NsdManager) for zero-config discovery.
+- **Storage**: SharedPreferences with JSON serialization for persistence.
+- **Networking Library**: OkHttp (for Cloud Sync).
 
-Round flow on every phone: **Lobby → Reveal → Discussion → Voting → Result**,
-with the host driving the transitions.
+## 📄 License
 
-#### How the network layer works
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-| File | Role |
-| --- | --- |
-| `net/Proto.kt` | Message types and the `NetState` snapshot, encoded as JSON |
-| `net/GameServer.kt` | Host's `ServerSocket`, one thread per phone, per-player sends |
-| `net/GameClient.kt` | Joining phone's socket and read loop |
-| `net/Discovery.kt` | mDNS advertise/browse (`_undercover._tcp`) + multicast lock |
-| `MultiplayerViewModel.kt` | Host authority: seats, dealing, vote tally, win checks |
-| `ui/screens/multi/` | Mode picker, host/join entry, lobby, and the shared round screen |
-
-Transport is newline-delimited JSON over TCP on port 45987 (it walks up to
-45995 if that one is taken). Permissions added for this: `ACCESS_NETWORK_STATE`,
-`ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`.
-
-#### Troubleshooting
-
-- Everyone must be on the **same** Wi-Fi. Guest networks with "client
-  isolation" and mobile data will not work.
-- If *Find a game* stays empty, use the `IP:port` shown on the host's lobby
-  screen — that path doesn't rely on multicast at all.
-- The host leaving ends the game for everyone; the lobby is the safe place to
-  add or drop players.
-
-## Source map
-
-```
-app/src/main/java/com/faizan/undercover/
-├─ MainActivity.kt          app shell, top bar, screen switch, back handling
-├─ GameViewModel.kt         all game rules and state transitions
-├─ model/Game.kt            Role, WordMode, GameState, RoundPlayer, outcomes
-├─ data/WordBank.kt         built-in categorised word pairs
-├─ data/GameStore.kt        SharedPreferences persistence
-└─ ui/
-   ├─ theme/Theme.kt        dossier colour scheme + monospace display type
-   ├─ components/           SectionCard, StatPill, rules & scoreboard sheets
-   └─ screens/              SetupScreen, RevealScreen, DiscussionScreen
-```
-
-## Build
-
-1. Open **Android Studio** (Koala or newer) → **File ▸ Open** → pick the folder
-   containing `settings.gradle`.
-2. Let Gradle sync (it downloads Gradle 8.6 and the AndroidX artifacts once).
-3. Press **Run ▶**.
-
-If Android Studio offers to create the `gradlew` wrapper scripts, accept —
-they're only needed for command-line builds (`./gradlew assembleDebug`).
-
-- `applicationId`: `com.faizan.undercover`
-- `minSdk 24`, `compileSdk`/`targetSdk 34`, Kotlin 1.9.24, Compose BOM 2024.06.00
-- No permissions requested.
-
-## Tweaking the game
-
-- **Words** → `data/WordBank.kt` (add pairs or a whole new category constant).
-- **Scoring** → the constants at the bottom of `GameViewModel.kt`.
-- **Colours and type** → `ui/theme/Theme.kt`.
-- **Win conditions** → `GameViewModel.checkEnd()`.
+---
+*Created with ❤️ by Faizan*

@@ -19,7 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Undo
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -76,6 +78,7 @@ fun DiscussionScreen(
     val haptic = LocalHapticFeedback.current
     var confirmTarget by remember { mutableStateOf<Int?>(null) }
     var blankGuess by remember { mutableStateOf("") }
+    var showSecretVoting by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -121,7 +124,7 @@ fun DiscussionScreen(
                     if (state.voteStyle == VoteStyle.QUICK) {
                         "Tap the agent the group suspects, then confirm."
                     } else {
-                        "Tap once per vote. Eliminate when one name clearly leads."
+                        "Pass the phone around for secret voting. 1 vote per alive agent."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -132,11 +135,14 @@ fun DiscussionScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     rowIndices.forEach { index ->
                         val player = state.round[index]
+                        val totalCast = vm.totalVotesCast
+                        val aliveCount = vm.alivePlayersCount
                         PlayerTile(
                             player = player,
                             index = index,
                             votes = state.votes[index] ?: 0,
                             showRole = player.eliminated || state.roundOver,
+                            showVotes = state.voteStyle == VoteStyle.QUICK || totalCast >= aliveCount || state.roundOver,
                             enabled = !player.eliminated && !state.roundOver,
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -160,7 +166,36 @@ fun DiscussionScreen(
 
             if (!state.roundOver && state.voteStyle == VoteStyle.TALLY) {
                 val leader = vm.voteLeader()
+                val totalCast = vm.totalVotesCast
+                val aliveCount = vm.alivePlayersCount
+
                 HorizontalDivider()
+
+                state.tieMessage?.let { msg ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        ),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = msg,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Votes cast: $totalCast / $aliveCount",
+                    style = StencilLabel,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -171,14 +206,22 @@ fun DiscussionScreen(
                         enabled = state.votes.isNotEmpty(),
                         modifier = Modifier.weight(1f)
                     ) { Text("Clear votes") }
+
                     Button(
-                        onClick = { leader?.let { confirmTarget = it } },
-                        enabled = leader != null,
+                        onClick = { showSecretVoting = true },
+                        enabled = totalCast < aliveCount,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            leader?.let { "Eliminate ${state.round[it].name}" } ?: "Tied — revote"
-                        )
+                        Text(if (totalCast == 0) "Secret Vote" else "Continue Vote")
+                    }
+                }
+
+                if (leader != null) {
+                    Button(
+                        onClick = { confirmTarget = leader },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Eliminate ${state.round[leader].name} (Most Voted)")
                     }
                 }
             }
@@ -254,10 +297,25 @@ fun DiscussionScreen(
             ) { Text("Reveal roles") }
         }
 
+        val atLimit = state.targetRounds > 0 && state.roundNumber >= state.targetRounds
+
         Button(
             onClick = { vm.newRound() },
+            enabled = !atLimit || !state.roundOver,
             modifier = Modifier.fillMaxWidth().height(54.dp)
-        ) { Text("Deal a new round") }
+        ) { 
+            Text(if (atLimit && state.roundOver) "Session limit reached" else "Deal a new round") 
+        }
+
+        if (atLimit && state.roundOver) {
+            Text(
+                "You have played all ${state.targetRounds} rounds. Check the final scores!",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
 
         OutlinedButton(
             onClick = { vm.backToSetup() },
@@ -326,6 +384,13 @@ fun DiscussionScreen(
             }
         )
     }
+
+    if (showSecretVoting) {
+        SecretVotingDialog(
+            vm = vm,
+            onDismiss = { showSecretVoting = false }
+        )
+    }
 }
 
 @Composable
@@ -367,6 +432,108 @@ private fun DiscussionTimer(totalSeconds: Int) {
     }
 }
 
+@Composable
+private fun SecretVotingDialog(
+    vm: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val state = vm.state
+    val alivePlayers = remember(state.round) {
+        state.round.mapIndexedNotNull { index, player ->
+            if (!player.eliminated) index to player else null
+        }
+    }
+
+    var currentVoterStep by remember { mutableIntStateOf(0) }
+    var isRevealed by remember { mutableStateOf(false) }
+
+    if (currentVoterStep >= alivePlayers.size || vm.totalVotesCast >= vm.alivePlayersCount) {
+        LaunchedEffect(Unit) {
+            onDismiss()
+        }
+        return
+    }
+
+    val currentVoter = alivePlayers[currentVoterStep]
+
+    AlertDialog(
+        onDismissRequest = { },
+        title = {
+            Text(
+                if (!isRevealed) "Pass Phone to Agent ${currentVoterStep + 1}"
+                else "${currentVoter.second.name}, cast your vote"
+            )
+        },
+        text = {
+            if (!isRevealed) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        currentVoter.second.name,
+                        style = MaterialTheme.typography.headlineMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "Hand the phone to ${currentVoter.second.name}. Make sure no one else can see the screen.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Who do you suspect?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    alivePlayers.forEach { (targetIndex, candidate) ->
+                        if (targetIndex != currentVoter.first) {
+                            OutlinedButton(
+                                onClick = {
+                                    vm.addVote(targetIndex)
+                                    isRevealed = false
+                                    currentVoterStep++
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(candidate.name)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!isRevealed) {
+                Button(
+                    onClick = { isRevealed = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("I am ${currentVoter.second.name}")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PlayerTile(
@@ -374,6 +541,7 @@ private fun PlayerTile(
     index: Int,
     votes: Int,
     showRole: Boolean,
+    showVotes: Boolean = false,
     enabled: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -422,7 +590,7 @@ private fun PlayerTile(
                     }
                 )
             }
-            if (votes > 0 && !player.eliminated) {
+            if (showVotes && votes > 0 && !player.eliminated) {
                 Badge(modifier = Modifier.align(Alignment.TopEnd)) { Text(votes.toString()) }
             }
         }
